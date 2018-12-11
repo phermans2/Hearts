@@ -46,6 +46,7 @@ hands = []          # Holds each player's hand of cards
 tricks = []         # Holds each player's won tricks
 curr_trick = []     # Temporarily holds the current trick until it is over. Then move to tricks[]
 pass_cards = []     # Holds each player's cards being passed
+broken = False      # keep track of whether hearts have been broken in the current deal or not.
 
 #</editor-fold>
 
@@ -72,15 +73,15 @@ def generate_suit(suit_name):
 # RETURNS:
 #   List of 4 hands
 def deal_cards(deck):
-    hands = []
+    # Start by clearing all hands
+    global hands
+    hands = [[],[],[],[]]
 
     # Pick a random card, and give it to each person in turn
     for i in range(13):
-        card = random.choice(deck)
-        move_cards(deck, card, hands[0])
-        move_cards(deck, card, hands[1])
-        move_cards(deck, card, hands[2])
-        move_cards(deck, card, hands[3])
+        for p in range(4):
+            card = random.choice(deck)
+            deck, hands[p] = move_cards(deck, [card], hands[p])
 
     return hands
 
@@ -95,8 +96,10 @@ def deal_cards(deck):
 # TODO - fix assumptions
 def move_cards(from_hand, cards_to_move, to_hand):
     # Take the cards_to_move and move them.
-    to_hand.extend(cards_to_move)
-    remove_cards(from_hand, cards_to_move)
+    to_hand += (cards_to_move)
+    from_hand = remove_cards(from_hand, cards_to_move)
+
+    return from_hand, to_hand
 
 # Removes the specified cards from the specified hand
 # INPUTS:
@@ -106,13 +109,14 @@ def move_cards(from_hand, cards_to_move, to_hand):
 # ASSUMPTIONS:
 #   list of cards is already validated that they exist in the from_hand
 def remove_cards(from_hand, cards):
-
-    for elem in cards:
+    for card in cards:
         try:
-            from_hand.remove(elem)
+            from_hand.remove(card)
         except:
             # if it isn't in the hand, just move to next card
             pass
+
+    return from_hand    # so calling function can make use of it
 
 #</editor-fold>
 
@@ -130,14 +134,18 @@ def remove_duplicates(list_w_dups):
 
 # Prints the specified player's hand
 def print_hand(player_num, player_name):
-    line1 = ""
-    line2 = ""
-    for index, card in enumerate(hands[player_num]):
-        line1 += " " + str(index) + " "
-        line2 += card + " "
+    str = " ".join(hands[player_num])
 
+    print("")
     print(player_name + ", your hand currently contains the following cards:")
-    print(line2)
+    print(str)
+
+# Prints the specified player's hand
+def print_current_trick():
+    print("\nThe following cards have been played in this trick so far:")
+    print(" ".join(curr_trick))
+
+
 
 #</editor-fold>
 
@@ -145,12 +153,11 @@ def print_hand(player_num, player_name):
 # --------------------------------------------------------
 # Validation Functions
 # --------------------------------------------------------
-# TODO - cleanup these validation functions!!!
-
 
 # Check if exactly the correct number of cards is being passed
 # INPUTS:
 #   passed_cards - a list of cards being passed
+#   expected_value - the number of cards that should be passed (usually 3)
 # RETURNS:
 #   True / False
 def passed_three_cards(passed_cards, expected_value):
@@ -159,7 +166,10 @@ def passed_three_cards(passed_cards, expected_value):
     else:
         return False
 
-# Checks if card is in list
+# Checks if the specified card is in list
+# INPUTS:
+#   card - the card being checked
+#   hand - the list that may contain the card
 def card_in_list(card, hand):
     if card in (hand):
         return True
@@ -187,7 +197,12 @@ def only_has_suit(hand, suit_name):
 
     return True
 
-
+# Checks if this is the first card in the trick (so it defines the lead suit)
+def is_lead(curr_trick):
+    if len(curr_trick) == 0:
+        return True
+    else:
+        return False
 
 # Checks if a card is a point card (all Hearts and Q of Spades)
 def is_point_card(card):
@@ -196,19 +211,71 @@ def is_point_card(card):
     else:
         is_point_card = False
 
-# Check if hand has only point cards in it
-def only_has_point_cards(hand):
-    has_non_point_card = False
-    for card in hand:
-        if card[1] != suits["Hearts"] and card == "Q" + suits["Spades"]:
-            return False
+# Checks if the specified card follows the lead suit.
+# NOTES:
+#   If this is the first card in the trick, then the answer will always be yes
+def follows_lead(card, curr_trick):
+    ret_val = False
+
+    if is_lead(curr_trick):
+        ret_val = True
+    else:
+        if card[-1] == curr_trick[0][-1]:
+            ret_val = True
+        else:
+            ret_val =  False
+
+    return ret_val
+
+
+# Checks if the player has any cards in the specified suit
+# INPUTS:
+#   player_num  - the number of the player whose hand should be checked
+#   suit        - the symbol of the suit to be checked
+def has_any_in_suit(player_num, suit):
+    has_some = False
+    for card in hands[player_num]:
+        if card[1] == suit:
+            has_some = True
+
+    return has_some
+
+# Checks if the specified card is a heart
+def is_heart(card):
+    if card[1] == suits["Hearts"]:
+        return True
+    else:
+        return False
+
+# Checks if the player has any other suit than the card the specified card's suit
+def has_any_other_suit(player_num, card):
+    has_some = False
+    for card in hands[player_num]:
+        if cards[1] != card[1]:
+            has_some = True
+    return has_some
+
+# Gets the lead suit. If it is blank it means it is not set yet
+def current_lead(curr_trick):
+    if len(curr_trick) > 0:
+        lead_suit = curr_trick[0][1]
+    else:
+        lead_suit = ''
+
+
+# Determines if the specified player is allowed to play the specified point card
+def can_play_point_card(palyer_num, card):
+    if is_heart(card) == True:
+        if broken == True:
+            return True
+        else:
+            if has_any_other_suit(curr_player, card) == True:
+                print("Hearts have not been broken yet and you have other choices. Must play one of those first.")
+                return False
+            else:
+                return True
     else:
         return True
-
-# TODO - finish these if needed
-# must have card in hand to use it
-# does player not have a specific suit?
-# can only play points at some times
 
 
 # Validate that number of cards being passed is 3 and the player has the specific cards available to pass
@@ -233,68 +300,51 @@ def validate_passed_cards(player_num, passed_cards):
 
     return is_valid
 
-# Checks that card is a valid card to play
+# Checks that card is a valid card to play.
+#
+# NOTES:
+#   There are many requirements about how to validate a card. It depends upon which trick is current, if the player is the
+#   lead player, if hearts have been broken, if the card is worth points and if they user has various alternate choices
+#   Logic is complex and detailed in a flow chart in the project directory
+#
+# ASSUMPTIONS:
+#   the card being played is assumed to be in the player's hand.
 def card_valid_to_play(player_num, card, trick_number):
-    is_valid = True
-
-    # Check if the trick has been started, and keep track of what the lead suit is
-    if len(curr_trick) > 0:
-        lead_suit = curr_trick[0][1]
-    else:
-        lead_suit = ''
-
-    # Check if points are allowed to be played
-    if trick_number == 0:
-        points_allowed = False
-    elif hearts_broken == True:
-        points_allowed = True
-    else:
-        if only_has_suit("Hearts"):
-            points_allowed = True
-    if points_allowed == True:
-        print("Points are allowed!")
-    # Card being played must follow suit of the lead card in the trick.
-    # If this is the lead card, any card (subject to rules below) will do.
-    # Only exception to this is if you have none of the lead suit to play.
-    # Then you are still subject to other rules about playing points etc.
-    if len(curr_trick) != 0:
-        # This is not the lead card, does it follow suit?
-        if card[1] != curr_trick[0][1]:
-            # Didn't follow lead suit!
-            # If they have any cards that would follow lead suit, must play them!
-            if has_suit(hands[player_num], curr_trick[0][1]):
-                print("You must follow the lead suit for the trick.")
-                return False
-    else:
-        # This is the lead card
-        pass
-    # Playing points is not allowed in first round unless:
-    #   1) You have only hearts in your hand
-    #   2) You have only hearts and Q of Spades in your hand.
-    #
-    #   In case 2, you must play the Q of Spades first.
-    #   Otherwise you have no choice but to play a heart
-
-
-    # Playing hearts is only allowed if you have no choice,
-    #   or they have been "broken"
-
-
-
-
-    # Passed
-    return is_valid
-
-# Check if the player's hand has any cards of the specified suit in it
-def has_suit(player_num, symbol):
-    for card in hands[player_num]:
-        if card[1] == symbol:
+    # If this is the first card in the first trick of the deal, then it must be a 2Club
+    if trick_number == 0 and is_lead(curr_trick):
+        if card != "2" + suits["Clubs"]:
+            print("First card in a new deal must be a 2 of Clubs.")
+            return False
+        else:
             return True
 
+    if is_lead(curr_trick):
+        # This card is the lead card
+        if is_point_card(card) == True:
+            return can_play_point_card(curr_player, card)
+        else:
+            return True
+    else:
+        # This card is not the lead card in the trick
+        if follows_lead(card, curr_trick) == True:
+            return True
+        else:
+            if has_any_in_suit(player_num, curr_trick[0][1]) == True:
+                print("You must follow suit if you can.")
+                return False
+            else:
+                # Check if points can be played
+                if is_point_card(card) == True:
+                    return can_play_point_card(curr_player, card)
+                else:
+                    return True
+
+    # It should never get to here, but just in case, print an error message and return false
+    print("Error validating card")
     return False
 
 
-# Returns which cards the user has elected to pass
+# Returns list of cards the user has elected to pass
 def get_cards_to_pass(player_num, player_name):
     valid = False
 
@@ -317,8 +367,9 @@ def get_cards_to_pass(player_num, player_name):
     # Return the list of cards this player is passing
     return new_cards
 
-# Asks the user for a single card from user's hand.
+# Asks the player for a single card from their hand.
 # Validates that it is actually in their hand before returning it.
+# If it isn't, just keeps asking until it is.
 def get_card(player_num, player_name):
     done = False
 
@@ -340,9 +391,6 @@ def get_card(player_num, player_name):
 
 #<editor-fold desc="Game Play Functions">
 
-# --------------------------------------------------------
-# Game Play Functions
-# --------------------------------------------------------
 # begin a new deal by shuffling deck, and passing cards.
 # deal_number indicates which number deal this is and will
 # affect the way cards are passed.
@@ -427,52 +475,108 @@ def find_two_clubs():
     # This should never happen as somebody must have the 2 of clubs
     return -1
 
+# Returns the numeric value of the card
+def get_card_value(card):
+    if card[:-1].lower() == 'a':
+        val = 14
+    elif card[:-1].lower() == 'k':
+        val = 13
+    elif card[:-1].lower() == 'q':
+        val = 12
+    elif card[:-1].lower() == 'j':
+        val = 11
+    else:
+        val = card[:-1]
+
+    return int(val)
+
+
+# Returns the index of the winning card in the trick
+def find_winning_card(trick):
+    # First card is lead suit, find the winning card in the trick
+    curr_winner = 0
+    max_in_lead_suit = 0
+
+    for index, card in enumerate(trick):
+        if index == 0:
+            lead_suit = card[-1]
+            max_in_lead_suit = get_card_value(card)
+            curr_winner = 0
+        elif card[-1] == lead_suit and get_card_value(card) > max_in_lead_suit:
+            # check if it is bigger than any previous card in lead suit....if so, it is current winner
+            max_in_lead_suit = get_card_value(card)
+            curr_winner = index
+        else:
+            # not trump suit, so can't win
+            pass
+
+    return curr_winner
+
 #</editor-fold>
 
+
+
+
+
+
+# Counts points in the trick and adds them to the score totals for each player
+def  add_to_total_scores(curr_trick, lead_player):
+    pass
+
+
+
+
+
 # ---------------- BEGIN PROGRAM -----------------------
+# Continue dealing new cards until someone loses.
 while lost == False:
-    hearts_broken = False   # Track whether or not Hearts have been broken in this deal yet
+    broken = False      # Track whether or not Hearts have been broken in this deal yet
 
     begin_deal(deal_number)
 
     # Cards have now been dealt, passed and we are ready to play!
 
-    # Each Deal should take 13 tricks to play.
+    # Each Deal should take exactly 13 tricks to play.
     for trick in range(14):
         curr_trick = []
         print("\n\n")
+        print("Begin Trick #", trick)
 
+        # If this is the first trick in the deal, then the player who has 2Clubs must start
         if trick == 0:
             # find 2 of clubs...make this person the start person
-            curr_player = find_two_clubs()
-            pass
-        else:
-            # make the person who won the last trick the start person
-            pass
+            lead_player  = find_two_clubs()
+
+        # Need to remember who started the trick
+        curr_player = lead_player
 
         # Ask all four players to play a card. Start with current player
         for i in range(4):
             valid_card = False
+
+            # Keep asking the player until they give a valid card to play.
             while not valid_card:
+                print("")
                 # Gets a card out of player's hand
                 card = get_card(curr_player, "Player " + str(curr_player))
+
+                # Check if it is ok to play the card. If so, play it, if not ask for a different card
                 if card_valid_to_play(curr_player, card, trick) == True:
+                    valid_card = True
                     curr_trick.append(card)
                 else:
-                    # If the card they played was invalid, put it back in their hand
-                    # and ask again until they play a valid card.
+                    # was not valid, so put it back in their hand and ask again
                     hands[curr_player].append(card)
 
-            print("Cards Played: ")
-            print(curr_trick)
+            print_current_trick()
             curr_player = next_player(curr_player)
 
-        # validate that it is a legal move
-        # Ask next player, validate
-        # Ask next player, validate
-        # Ask next player, validate
-        # Determine who won trick, add it to their tricks collection
-        # Trick over - calculate and report scores
+        # Trick over so add it to the winning player's tricks and make them the new lead player
+        lead_player = (lead_player + find_winning_card(curr_trick) ) % 4 + 1
+        tricks[lead_player].append(curr_trick)
+        curr_trick = []
+
+
 
 
     deal_number += 1
