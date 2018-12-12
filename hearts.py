@@ -32,6 +32,9 @@
 import random
 
 #<editor-fold desc="Variable Definitions">
+
+DEBUG = False       # FLAG to control whether some code runs or not....for testing
+
 suits = {"Hearts":'♥',
          "Clubs": '♣',
          "Diamonds":'♦',
@@ -43,7 +46,8 @@ losing_total = 100  # Play until someone gets this total
 points = [0,0,0,0]  # Points for each player
 
 hands = []          # Holds each player's hand of cards
-tricks = []         # Holds each player's won tricks
+tricks = [[],[],[],[]]         # Holds each player's won tricks
+scores = [0,0,0,0]  # Total score of each player. Will update after each deal
 curr_trick = []     # Temporarily holds the current trick until it is over. Then move to tricks[]
 pass_cards = []     # Holds each player's cards being passed
 broken = False      # keep track of whether hearts have been broken in the current deal or not.
@@ -192,7 +196,7 @@ def has_suit( hand, suit ):
 # Checks if the hand contains only the specified Suit
 def only_has_suit(hand, suit_name):
     for card in hand:
-        if card[1] != suit[suit_name]:
+        if card[1] != suits[suit_name]:
             return False
 
     return True
@@ -241,17 +245,28 @@ def has_any_in_suit(player_num, suit):
     return has_some
 
 # Checks if the specified card is a heart
-def is_heart(card):
-    if card[1] == suits["Hearts"]:
+def is_heart(check_card):
+    if check_card[-1] == suits["Hearts"]:
         return True
     else:
         return False
+
+# Calculates the point value of the specified card
+def point_value(check_card):
+    if is_heart(check_card) == True:
+        return 1
+    elif check_card[0] == 'Q' and check_card[-1] == suits["Spades"]:
+        return 13
+    else:
+        return 0
+
+    return 0
 
 # Checks if the player has any other suit than the card the specified card's suit
 def has_any_other_suit(player_num, card):
     has_some = False
     for card in hands[player_num]:
-        if cards[1] != card[1]:
+        if hands[1] != card[1]:
             has_some = True
     return has_some
 
@@ -532,12 +547,15 @@ def  add_to_total_scores(curr_trick, lead_player):
 while lost == False:
     broken = False      # Track whether or not Hearts have been broken in this deal yet
 
+    if DEBUG:
+        deal_number = 3
+
     begin_deal(deal_number)
 
     # Cards have now been dealt, passed and we are ready to play!
 
     # Each Deal should take exactly 13 tricks to play.
-    for trick in range(14):
+    for trick in range(13):
         curr_trick = []
         print("\n\n")
         print("Begin Trick #", trick)
@@ -558,25 +576,61 @@ while lost == False:
             while not valid_card:
                 print("")
                 # Gets a card out of player's hand
-                card = get_card(curr_player, "Player " + str(curr_player))
+                if DEBUG:
+                    # Find the first valid card to play.
+                    for card in hands[curr_player]:
+                        if card_valid_to_play(curr_player, card, trick) == True:
+                            valid_card = True
+                            curr_trick.append ( card)
+                            hands[curr_player].remove(card)
+                            break
 
-                # Check if it is ok to play the card. If so, play it, if not ask for a different card
-                if card_valid_to_play(curr_player, card, trick) == True:
-                    valid_card = True
-                    curr_trick.append(card)
                 else:
-                    # was not valid, so put it back in their hand and ask again
-                    hands[curr_player].append(card)
+                    card = get_card(curr_player, "Player " + str(curr_player))
+
+                    # Check if it is ok to play the card. If so, play it, if not ask for a different card
+                    if card_valid_to_play(curr_player, card, trick) == True:
+                        valid_card = True
+                        curr_trick.append(card)
+                    else:
+                        # was not valid, so put it back in their hand and ask again
+                        hands[curr_player].append(card)
 
             print_current_trick()
             curr_player = next_player(curr_player)
 
         # Trick over so add it to the winning player's tricks and make them the new lead player
-        lead_player = (lead_player + find_winning_card(curr_trick) ) % 4 + 1
-        tricks[lead_player].append(curr_trick)
+        new_lead =  ( lead_player + find_winning_card(curr_trick) ) % 4
+        lead_player = new_lead
+        tricks[lead_player].extend(curr_trick)
         curr_trick = []
 
+    # All 13 tricks have been played, so total scores, and output standings
+    for player_num, trick in enumerate(tricks):
+        new_points = 0
+        for card in trick:
+            new_points += point_value(card)
 
+        # If this player didn't shoot the moon, add points to their hand
+        if new_points != 26:
+            scores[player_num] += new_points
+        else:
+            # Add to everyone else's hand and exit
+            print("Player " + str(player_num) + " shot the Moon!!!!")
+            for i in range(4):
+                if i != player_num:
+                    scores[ i ] += 26
 
+    # Print the scores
+    for index, score in enumerate(scores):
+        print("Player " + str(index) + ": " + str(score))
+
+    # Check if game is over.
+    for score in scores:
+        if score >= losing_total:
+            lost = True
+            break
 
     deal_number += 1
+
+print("Game is Over!")

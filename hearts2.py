@@ -113,8 +113,8 @@ class Deck(object):
         """sort the cards in ascending order"""
         self.cards.sort()
 
+    """move the given number of cards from the deck into the Hand"""
     def move_cards(self, hand, num):
-        """move the given number of cards from the deck into the Hand"""
         for i in range(num):
             hand.add_card(self.pop_card())
 
@@ -134,6 +134,8 @@ class Hand(Deck):
 
     def display_hand(self):
         print( self.label + "'s hand: " + str(self))
+
+
 
 
 class Trick(object):
